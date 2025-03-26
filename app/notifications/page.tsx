@@ -11,6 +11,16 @@ import { useToast } from "@/components/ui/use-toast"
 import { Bell, Info, AlertCircle, Calendar, CheckCircle2, X } from "lucide-react"
 import { formatDateTime } from "@/lib/utils"
 import { EmptyState, ScrollableContent, TableContainer } from "@/components/ui-components"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Sample data
 const initialNotifications = [
@@ -192,6 +202,23 @@ export default function NotificationsPage() {
     }
   }
 
+  const [notificationToDelete, setNotificationToDelete] = useState(null)
+  const [isDeleteNotificationDialogOpen, setIsDeleteNotificationDialogOpen] = useState(false)
+
+  const confirmDeleteNotification = (id) => {
+    const notification = notifications.find((n) => n.id === id)
+    setNotificationToDelete(notification)
+    setIsDeleteNotificationDialogOpen(true)
+  }
+
+  const handleDeleteNotification = () => {
+    if (notificationToDelete) {
+      deleteNotification(notificationToDelete.id)
+      setIsDeleteNotificationDialogOpen(false)
+      setNotificationToDelete(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-7xl">
@@ -253,7 +280,7 @@ export default function NotificationsPage() {
                                     className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      deleteNotification(notification.id)
+                                      confirmDeleteNotification(notification.id)
                                     }}
                                   >
                                     <X className="h-4 w-4" />
@@ -326,6 +353,25 @@ export default function NotificationsPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <AlertDialog open={isDeleteNotificationDialogOpen} onOpenChange={setIsDeleteNotificationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Notification</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this notification? You can undo this action if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNotificationToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteNotification}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

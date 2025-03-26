@@ -18,6 +18,16 @@ import {
   DialogTrigger,
   MobileDialogClose,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import {
   Search,
@@ -157,6 +167,10 @@ export default function DocumentsPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [uploadDate, setUploadDate] = useState<Date | undefined>(undefined)
+  const [documentToDelete, setDocumentToDelete] = useState(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [libraryToDelete, setLibraryToDelete] = useState(null)
+  const [isDeleteLibraryDialogOpen, setIsDeleteLibraryDialogOpen] = useState(false)
 
   const filteredDocuments = documents.filter(
     (doc) =>
@@ -228,10 +242,15 @@ export default function DocumentsPage() {
         await new Promise((resolve) => setTimeout(resolve, 1000))
 
         // Validate that upload date is not in the future
-        const formattedUploadDate = uploadDate
-          ? format(uploadDate, "yyyy-MM-dd")
-          : new Date().toISOString().split("T")[0]
+        if (!uploadDate) {
+          toast.error("Date required", {
+            description: "Please select an upload date.",
+          })
+          setIsUploading(false)
+          return
+        }
 
+        const formattedUploadDate = format(uploadDate, "yyyy-MM-dd")
         const uploadDateObj = new Date(formattedUploadDate)
         const today = new Date()
         today.setHours(0, 0, 0, 0)
@@ -289,41 +308,59 @@ export default function DocumentsPage() {
     })
   }
 
-  const handleDeleteDocument = (id) => {
-    const documentToDelete = documents.find((doc) => doc.id === id)
-    setDocuments(documents.filter((doc) => doc.id !== id))
-    if (selectedFile && selectedFile.id === id) {
+  const confirmDeleteDocument = (doc, e) => {
+    if (e) e.stopPropagation()
+    setDocumentToDelete(doc)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteDocument = () => {
+    if (!documentToDelete) return
+
+    const doc = documentToDelete
+    setDocuments(documents.filter((d) => d.id !== doc.id))
+    if (selectedFile && selectedFile.id === doc.id) {
       setSelectedFile(null)
     }
+    setIsDeleteDialogOpen(false)
+    setDocumentToDelete(null)
 
     toast("Document deleted", {
-      description: "The document has been removed.",
+      description: `"${doc.name}" has been removed.`,
       action: {
         label: "Undo",
         onClick: () => {
-          setDocuments((prev) => [...prev, documentToDelete])
+          setDocuments((prev) => [...prev, doc].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
-            description: "The document has been restored.",
+            description: `"${doc.name}" has been restored.`,
           })
         },
       },
     })
   }
 
-  const handleDeleteLibrary = (id, e) => {
+  const confirmDeleteLibrary = (library, e) => {
     if (e) e.stopPropagation()
+    setLibraryToDelete(library)
+    setIsDeleteLibraryDialogOpen(true)
+  }
 
-    const libraryToDelete = libraries.find((lib) => lib.id === id)
-    setLibraries(libraries.filter((lib) => lib.id !== id))
+  const handleDeleteLibrary = () => {
+    if (!libraryToDelete) return
+
+    const library = libraryToDelete
+    setLibraries(libraries.filter((lib) => lib.id !== library.id))
+    setIsDeleteLibraryDialogOpen(false)
+    setLibraryToDelete(null)
 
     toast("Library deleted", {
-      description: "The library has been removed.",
+      description: `"${library.name}" library has been removed.`,
       action: {
         label: "Undo",
         onClick: () => {
-          setLibraries((prev) => [...prev, libraryToDelete])
+          setLibraries((prev) => [...prev, library].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
-            description: "The library has been restored.",
+            description: `"${library.name}" library has been restored.`,
           })
         },
       },
@@ -449,9 +486,13 @@ export default function DocumentsPage() {
                               )}
                             />
 
+                            {/* Find the DatePicker in the document upload form */}
                             <FormItem className="flex flex-col">
                               <FormLabel>Upload Date</FormLabel>
-                              <DatePicker date={uploadDate} setDate={setUploadDate} />
+                              <DatePicker date={uploadDate} setDate={setUploadDate} disablePastDates={false} />
+                              {!uploadDate && documentForm.formState.isSubmitted && (
+                                <p className="text-sm font-medium text-destructive">Upload date is required</p>
+                              )}
                               <FormMessage />
                             </FormItem>
 
@@ -505,7 +546,11 @@ export default function DocumentsPage() {
                       <TableContainer>
                         <div className="space-y-2">
                           {filteredDocuments.map((doc) => (
-                            <div key={doc.id} className="p-3 rounded-md flex items-center gap-3 hover:bg-muted">
+                            <div
+                              key={doc.id}
+                              className="p-3 rounded-md flex items-center gap-3 hover:bg-muted"
+                              onClick={() => handleViewDocument(doc)}
+                            >
                               <div className="flex-shrink-0">{getFileIcon(doc.type)}</div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{doc.name}</p>
@@ -525,7 +570,10 @@ export default function DocumentsPage() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
-                                  onClick={() => handleDownloadDocument(doc)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDownloadDocument(doc, e)
+                                  }}
                                   aria-label={`Download ${doc.name}`}
                                 >
                                   <Download className="h-4 w-4" />
@@ -534,7 +582,10 @@ export default function DocumentsPage() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-destructive"
-                                  onClick={() => handleDeleteDocument(doc.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    confirmDeleteDocument(doc, e)
+                                  }}
                                   aria-label={`Delete ${doc.name}`}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -577,7 +628,10 @@ export default function DocumentsPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive"
-                        onClick={(e) => handleDeleteLibrary(library.id, e)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          confirmDeleteLibrary(library, e)
+                        }}
                         aria-label={`Delete ${library.name} library`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -787,6 +841,43 @@ export default function DocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Document Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Document</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{documentToDelete?.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDocumentToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteDocument} className="bg-destructive text-destructive-foreground">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Library Confirmation Dialog */}
+        <AlertDialog open={isDeleteLibraryDialogOpen} onOpenChange={setIsDeleteLibraryDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Library</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete the "{libraryToDelete?.name}" library? This will remove all documents
+                within this library. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setLibraryToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteLibrary} className="bg-destructive text-destructive-foreground">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

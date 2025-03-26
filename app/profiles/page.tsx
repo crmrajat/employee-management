@@ -17,27 +17,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   MobileDialogClose,
 } from "@/components/safe-dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Search, Plus, Edit, UserCheck, Users, Trash2 } from "lucide-react"
+import { Search, Plus, Edit, UserCheck, Users } from "lucide-react"
 import { employeeSchema } from "@/lib/validations"
 import { EmptyState, ScrollableContent, TableContainer } from "@/components/ui-components"
 import { toast } from "sonner"
-import { DatePicker } from "@/components/ui/date-picker"
-import { format, parse } from "date-fns"
+import { FormDatePicker } from "@/components/ui/date-picker"
+import { format } from "date-fns"
+import { DeleteConfirmation } from "@/components/delete-confirmation"
 
 // Sample data
 const initialEmployees = [
@@ -47,7 +36,7 @@ const initialEmployees = [
     position: "Software Developer",
     department: "Engineering",
     email: "alex.johnson@example.com",
-    phone: "(555) 123-4567",
+    phone: "5551234567",
     mentor: "Sarah Williams",
     progress: 75,
     skills: ["JavaScript", "React", "Node.js"],
@@ -59,7 +48,7 @@ const initialEmployees = [
     position: "UX Designer",
     department: "Design",
     email: "emily.davis@example.com",
-    phone: "(555) 987-6543",
+    phone: "5559876543",
     mentor: "Michael Brown",
     progress: 60,
     skills: ["UI/UX", "Figma", "User Research"],
@@ -71,7 +60,7 @@ const initialEmployees = [
     position: "Product Manager",
     department: "Product",
     email: "james.wilson@example.com",
-    phone: "(555) 456-7890",
+    phone: "5554567890",
     mentor: "Lisa Chen",
     progress: 90,
     skills: ["Product Strategy", "Agile", "Market Analysis"],
@@ -81,7 +70,7 @@ const initialEmployees = [
 
 const mentors = ["Sarah Williams", "Michael Brown", "Lisa Chen", "David Miller", "Jennifer Taylor"]
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString) => {
   try {
     const date = new Date(dateString)
     return format(date, "d MMM, yyyy") // Changed to "1 Jan, 2025" format
@@ -102,8 +91,6 @@ export default function ProfilesPage() {
   const [newSkill, setNewSkill] = useState("")
   const [isAddingEmployee, setIsAddingEmployee] = useState(false)
   const [isEditingEmployee, setIsEditingEmployee] = useState(false)
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined)
-  const [editStartDate, setEditStartDate] = useState<Date | undefined>(undefined)
   const [mounted, setMounted] = useState(false)
 
   // Use a ref to track form operations
@@ -154,19 +141,15 @@ export default function ProfilesPage() {
     }
   }, [form])
 
+  // Fix the edit form initialization to properly parse dates
   useEffect(() => {
     if (selectedEmployee && isEditDialogOpen && !formOperationInProgress.current) {
       formOperationInProgress.current = true
-      form.reset(selectedEmployee)
-
-      if (selectedEmployee.startDate) {
-        try {
-          setEditStartDate(parse(selectedEmployee.startDate, "yyyy-MM-dd", new Date()))
-        } catch (error) {
-          console.error("Error parsing date:", error)
-          setEditStartDate(undefined)
-        }
-      }
+      form.reset({
+        ...selectedEmployee,
+        // Ensure phone is a string without special characters
+        phone: selectedEmployee.phone ? selectedEmployee.phone.replace(/\D/g, "") : "",
+      })
       formOperationInProgress.current = false
     }
   }, [selectedEmployee, isEditDialogOpen, form])
@@ -175,6 +158,7 @@ export default function ProfilesPage() {
     setSelectedEmployee(employee)
   }, [])
 
+  // Fix the add employee handler to properly format dates
   const handleAddEmployee = useCallback(
     async (data) => {
       if (formOperationInProgress.current) return
@@ -185,18 +169,14 @@ export default function ProfilesPage() {
         // Simulate API call
         await new Promise((resolve) => setTimeout(resolve, 800))
 
-        const formattedStartDate = startDate ? format(startDate, "yyyy-MM-dd") : ""
-
         const newEmployee = {
           ...data,
-          startDate: formattedStartDate,
           id: employees.length > 0 ? Math.max(...employees.map((e) => e.id)) + 1 : 1,
         }
 
         setEmployees((prev) => [...prev, newEmployee])
         setIsAddDialogOpen(false)
         resetForm()
-        setStartDate(undefined)
 
         toast.success("Employee added", {
           description: `${data.name} has been added successfully.`,
@@ -210,9 +190,10 @@ export default function ProfilesPage() {
         formOperationInProgress.current = false
       }
     },
-    [employees, resetForm, startDate],
+    [employees, resetForm],
   )
 
+  // Fix the edit employee handler to properly format dates
   const handleEditEmployee = useCallback(
     async (data) => {
       if (formOperationInProgress.current || !selectedEmployee) return
@@ -223,13 +204,8 @@ export default function ProfilesPage() {
         // Simulate API call
         await new Promise((resolve) => setTimeout(resolve, 800))
 
-        const formattedStartDate = editStartDate
-          ? format(editStartDate, "yyyy-MM-dd")
-          : selectedEmployee.startDate || ""
-
         const updatedEmployee = {
           ...data,
-          startDate: formattedStartDate,
           id: selectedEmployee.id,
         }
 
@@ -249,33 +225,43 @@ export default function ProfilesPage() {
         formOperationInProgress.current = false
       }
     },
-    [selectedEmployee, editStartDate],
+    [selectedEmployee],
   )
 
-  const handleDeleteEmployee = useCallback(
-    (id) => {
-      const employeeToDelete = employees.find((emp) => emp.id === id)
-      setEmployees((prev) => prev.filter((emp) => emp.id !== id))
-      if (selectedEmployee?.id === id) {
-        setSelectedEmployee(null)
-      }
-      setIsDeleteDialogOpen(false)
+  const confirmDeleteEmployee = (employee) => {
+    setEmployeeToDelete(employee)
+    setIsDeleteDialogOpen(true)
+  }
 
-      toast("Employee deleted", {
-        description: "The employee has been removed.",
-        action: {
-          label: "Undo",
-          onClick: () => {
-            setEmployees((prev) => [...prev, employeeToDelete])
-            toast.success("Action undone", {
-              description: "The employee has been restored.",
-            })
-          },
+  const handleDeleteEmployee = useCallback(() => {
+    if (!employeeToDelete) return
+
+    const deletedEmployee = { ...employeeToDelete }
+    setEmployees((prev) => prev.filter((emp) => emp.id !== deletedEmployee.id))
+
+    if (selectedEmployee?.id === deletedEmployee.id) {
+      setSelectedEmployee(null)
+    }
+
+    setIsDeleteDialogOpen(false)
+    setEmployeeToDelete(null)
+
+    toast("Employee deleted", {
+      description: `${deletedEmployee.name} has been removed.`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setEmployees((prev) => [...prev, deletedEmployee])
+          if (selectedEmployee?.id === deletedEmployee.id) {
+            setSelectedEmployee(deletedEmployee)
+          }
+          toast.success("Action undone", {
+            description: `${deletedEmployee.name} has been restored.`,
+          })
         },
-      })
-    },
-    [employees, selectedEmployee],
-  )
+      },
+    })
+  }, [employeeToDelete, selectedEmployee])
 
   const handleAddSkill = useCallback(() => {
     if (newSkill.trim() !== "" && !form.getValues().skills.includes(newSkill.trim())) {
@@ -284,12 +270,27 @@ export default function ProfilesPage() {
     }
   }, [form, newSkill])
 
+  // Update the handleRemoveSkill function to show a toast with undo functionality
   const handleRemoveSkill = useCallback(
     (skillToRemove) => {
+      const currentSkills = [...form.getValues().skills]
       form.setValue(
         "skills",
-        form.getValues().skills.filter((skill) => skill !== skillToRemove),
+        currentSkills.filter((skill) => skill !== skillToRemove),
       )
+
+      toast(`Skill removed`, {
+        description: `"${skillToRemove}" has been removed from skills.`,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            form.setValue("skills", [...form.getValues().skills, skillToRemove])
+            toast.success("Action undone", {
+              description: `"${skillToRemove}" has been restored to skills.`,
+            })
+          },
+        },
+      })
     },
     [form],
   )
@@ -348,242 +349,16 @@ export default function ProfilesPage() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <CardTitle>Employees</CardTitle>
-                  <Dialog
-                    open={isAddDialogOpen}
-                    onOpenChange={(open) => {
-                      if (!formOperationInProgress.current) {
-                        setIsAddDialogOpen(open)
-                        if (!open) {
-                          resetForm()
-                          setStartDate(undefined)
-                        }
-                      }
-                    }}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    type="button"
+                    onClick={() => setIsAddDialogOpen(true)}
                   >
-                    <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="gap-1" type="button">
-                        <Plus className="h-4 w-4" />
-                        Add
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[525px] flex flex-col">
-                      <MobileDialogClose />
-                      <DialogHeader className="flex-shrink-0">
-                        <DialogTitle>Add New Employee</DialogTitle>
-                        <DialogDescription>Fill in the details to add a new employee to the system.</DialogDescription>
-                      </DialogHeader>
-                      <Form {...form}>
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault()
-                            form.handleSubmit(handleAddEmployee)(e)
-                          }}
-                          className="flex flex-col flex-1 overflow-hidden"
-                        >
-                          <div className="flex-1 overflow-y-auto py-4">
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <FormField
-                                  control={form.control}
-                                  name="name"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Full Name</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="John Doe" {...field} maxLength={50} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="position"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Position</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="Software Developer" {...field} maxLength={50} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="department"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Department</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="Engineering" {...field} maxLength={50} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="email"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Email</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="email"
-                                          placeholder="john.doe@example.com"
-                                          {...field}
-                                          maxLength={100}
-                                          aria-describedby="email-description"
-                                        />
-                                      </FormControl>
-                                      <p id="email-description" className="text-xs text-muted-foreground mt-1">
-                                        Must be a valid company email address
-                                      </p>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="phone"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Phone</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="tel"
-                                          placeholder="1234567890"
-                                          {...field}
-                                          maxLength={10}
-                                          aria-describedby="phone-description"
-                                        />
-                                      </FormControl>
-                                      <p id="phone-description" className="text-xs text-muted-foreground mt-1">
-                                        10-digit number with no spaces or special characters
-                                      </p>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="mentor"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Mentor</FormLabel>
-                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Select a mentor" />
-                                          </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                          {mentors.map((mentor) => (
-                                            <SelectItem key={mentor} value={mentor}>
-                                              {mentor}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="startDate"
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-col">
-                                      <FormLabel>Start Date</FormLabel>
-                                      <DatePicker date={startDate} setDate={setStartDate} />
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="progress"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Progress ({field.value}%)</FormLabel>
-                                      <FormControl>
-                                        <Input
-                                          type="range"
-                                          min="0"
-                                          max="100"
-                                          onChange={(e) => field.onChange(Number.parseInt(e.target.value))}
-                                          value={field.value}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-
-                              <FormField
-                                control={form.control}
-                                name="skills"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Skills</FormLabel>
-                                    <div className="h-24 border rounded-md p-2 mb-2 overflow-auto">
-                                      <div className="flex flex-wrap gap-2">
-                                        {field.value.map((skill, index) => (
-                                          <div
-                                            key={index}
-                                            className="bg-primary/10 px-2 py-1 rounded text-sm flex items-center gap-1"
-                                          >
-                                            {skill}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleRemoveSkill(skill)}
-                                              className="text-muted-foreground hover:text-foreground ml-1"
-                                              aria-label={`Remove ${skill} skill`}
-                                            >
-                                              ×
-                                            </button>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Input
-                                        placeholder="Add skill"
-                                        value={newSkill}
-                                        onChange={(e) => setNewSkill(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        maxLength={30}
-                                        aria-label="Add a skill"
-                                      />
-                                      <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>
-                                        Add
-                                      </Button>
-                                    </div>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                          </div>
-
-                          <DialogFooter className="flex-shrink-0 pt-4 border-t mt-auto form-buttons">
-                            <Button type="submit" className="w-full sm:w-auto" disabled={isAddingEmployee}>
-                              {isAddingEmployee ? (
-                                <span className="flex items-center gap-2">
-                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                  Adding...
-                                </span>
-                              ) : (
-                                "Add Employee"
-                              )}
-                            </Button>
-                          </DialogFooter>
-                        </form>
-                      </Form>
-                    </DialogContent>
-                  </Dialog>
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </Button>
                 </div>
                 <div className="relative mt-2">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -656,270 +431,29 @@ export default function ProfilesPage() {
                   <div className="flex justify-between items-center">
                     <CardTitle>Employee Profile</CardTitle>
                     <div className="flex gap-2">
-                      <Dialog
-                        open={isEditDialogOpen}
-                        onOpenChange={(open) => {
-                          if (!formOperationInProgress.current) {
-                            setIsEditDialogOpen(open)
-                          }
-                        }}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        aria-label={`Edit ${selectedEmployee?.name}'s profile`}
+                        type="button"
+                        onClick={() => setIsEditDialogOpen(true)}
                       >
-                        <DialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1"
-                            aria-label={`Edit ${selectedEmployee?.name}'s profile`}
-                            type="button"
-                          >
-                            <Edit className="h-4 w-4" />
-                            <span className="hidden sm:inline">Edit</span>
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[525px] flex flex-col">
-                          <MobileDialogClose />
-                          <DialogHeader className="flex-shrink-0">
-                            <DialogTitle>Edit Employee</DialogTitle>
-                            <DialogDescription>Make changes to {selectedEmployee?.name}'s profile.</DialogDescription>
-                          </DialogHeader>
-                          <Form {...form}>
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault()
-                                form.handleSubmit(handleEditEmployee)(e)
-                              }}
-                              className="flex flex-col flex-1 overflow-hidden"
-                            >
-                              <div className="flex-1 overflow-y-auto py-4">
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <FormField
-                                      control={form.control}
-                                      name="name"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Full Name</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} maxLength={50} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="position"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Position</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} maxLength={50} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="department"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Department</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} maxLength={50} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="email"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Email</FormLabel>
-                                          <FormControl>
-                                            <Input type="email" {...field} maxLength={100} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="phone"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Phone</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              type="tel"
-                                              placeholder="1234567890"
-                                              {...field}
-                                              maxLength={10}
-                                              aria-describedby="phone-description"
-                                            />
-                                          </FormControl>
-                                          <p id="phone-description" className="text-xs text-muted-foreground mt-1">
-                                            10-digit number with no spaces or special characters
-                                          </p>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="mentor"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Mentor</FormLabel>
-                                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                              <SelectTrigger>
-                                                <SelectValue placeholder="Select a mentor" />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              {mentors.map((mentor) => (
-                                                <SelectItem key={mentor} value={mentor}>
-                                                  {mentor}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="startDate"
-                                      render={({ field }) => (
-                                        <FormItem className="flex flex-col">
-                                          <FormLabel>Start Date</FormLabel>
-                                          <DatePicker date={editStartDate} setDate={setEditStartDate} />
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="progress"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Progress ({field.value}%)</FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              type="range"
-                                              min="0"
-                                              max="100"
-                                              onChange={(e) => field.onChange(Number.parseInt(e.target.value))}
-                                              value={field.value}
-                                              aria-valuemin="0"
-                                              aria-valuemax="100"
-                                              aria-valuenow={field.value}
-                                              aria-valuetext={`${field.value} percent`}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                  </div>
-
-                                  <FormField
-                                    control={form.control}
-                                    name="skills"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Skills</FormLabel>
-                                        <div className="h-24 border rounded-md p-2 mb-2 overflow-auto">
-                                          <div className="flex flex-wrap gap-2">
-                                            {field.value.map((skill, index) => (
-                                              <div
-                                                key={index}
-                                                className="bg-primary/10 px-2 py-1 rounded text-sm flex items-center gap-1"
-                                              >
-                                                {skill}
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleRemoveSkill(skill)}
-                                                  className="text-muted-foreground hover:text-foreground ml-1"
-                                                  aria-label={`Remove ${skill} skill`}
-                                                >
-                                                  ×
-                                                </button>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            placeholder="Add skill"
-                                            value={newSkill}
-                                            onChange={(e) => setNewSkill(e.target.value)}
-                                            onKeyDown={handleKeyDown}
-                                            maxLength={30}
-                                            aria-label="Add a skill"
-                                          />
-                                          <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>
-                                            Add
-                                          </Button>
-                                        </div>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-                              </div>
-
-                              <DialogFooter className="flex-shrink-0 pt-4 border-t mt-auto form-buttons">
-                                <Button type="submit" className="w-full sm:w-auto" disabled={isEditingEmployee}>
-                                  {isEditingEmployee ? (
-                                    <span className="flex items-center gap-2">
-                                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                      Saving...
-                                    </span>
-                                  ) : (
-                                    "Save Changes"
-                                  )}
-                                </Button>
-                              </DialogFooter>
-                            </form>
-                          </Form>
-                        </DialogContent>
-                      </Dialog>
-
-                      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => setEmployeeToDelete(selectedEmployee)}
-                            aria-label={`Delete ${selectedEmployee.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete {selectedEmployee.name}? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteEmployee(selectedEmployee.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                        <Edit className="h-4 w-4" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </Button>
+                      <DeleteConfirmation
+                        itemName={selectedEmployee.name}
+                        itemType="Employee"
+                        onDelete={() => {
+                          const deletedEmployee = { ...selectedEmployee }
+                          setEmployees((prev) => prev.filter((emp) => emp.id !== deletedEmployee.id))
+                          setSelectedEmployee(null)
+                        }}
+                        onUndo={() => {
+                          setEmployees((prev) => [...prev, selectedEmployee].sort((a, b) => a.id - b.id))
+                        }}
+                      />
                     </div>
                   </div>
                 </CardHeader>
@@ -1058,6 +592,458 @@ export default function ProfilesPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Employee Dialog - Only render when open to avoid context issues */}
+      {isAddDialogOpen && (
+        <Dialog
+          open={isAddDialogOpen}
+          onOpenChange={(open) => {
+            if (!formOperationInProgress.current) {
+              setIsAddDialogOpen(open)
+              if (!open) {
+                resetForm()
+              }
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[525px] flex flex-col">
+            <MobileDialogClose />
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>Add New Employee</DialogTitle>
+              <DialogDescription>Fill in the details to add a new employee to the system.</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  form.handleSubmit(handleAddEmployee)(e)
+                }}
+                className="flex flex-col flex-1 overflow-hidden"
+              >
+                <div className="flex-1 overflow-y-auto py-4">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="John Doe" {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="position"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Position</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Software Developer" {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="department"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Department</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Engineering" {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="john.doe@example.com"
+                                {...field}
+                                maxLength={100}
+                                aria-describedby="email-description"
+                              />
+                            </FormControl>
+                            <p id="email-description" className="text-xs text-muted-foreground mt-1">
+                              Must be a valid company email address
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="tel"
+                                placeholder="1234567890"
+                                {...field}
+                                maxLength={10}
+                                aria-describedby="phone-description"
+                              />
+                            </FormControl>
+                            <p id="phone-description" className="text-xs text-muted-foreground mt-1">
+                              10-digit number with no spaces or special characters
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="mentor"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mentor</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a mentor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {mentors.map((mentor) => (
+                                  <SelectItem key={mentor} value={mentor}>
+                                    {mentor}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormDatePicker
+                        control={form.control}
+                        name="startDate"
+                        label="Start Date"
+                        placeholder="Select start date"
+                        disablePastDates={false}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="progress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Progress ({field.value}%)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="range"
+                                min="0"
+                                max="100"
+                                onChange={(e) => field.onChange(Number.parseInt(e.target.value))}
+                                value={field.value}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="skills"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Skills</FormLabel>
+                          <div className="h-24 border rounded-md p-2 mb-2 overflow-auto">
+                            <div className="flex flex-wrap gap-2">
+                              {field.value.map((skill, index) => (
+                                <div
+                                  key={index}
+                                  className="bg-primary/10 px-2 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  {skill}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSkill(skill)}
+                                    className="text-muted-foreground hover:text-foreground ml-1"
+                                    aria-label={`Remove ${skill} skill`}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Add skill"
+                              value={newSkill}
+                              onChange={(e) => setNewSkill(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              maxLength={30}
+                              aria-label="Add a skill"
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>
+                              Add
+                            </Button>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter className="flex-shrink-0 pt-4 border-t mt-auto form-buttons">
+                  <Button type="submit" className="w-full sm:w-auto" disabled={isAddingEmployee}>
+                    {isAddingEmployee ? (
+                      <span className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Adding...
+                      </span>
+                    ) : (
+                      "Add Employee"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Employee Dialog - Only render when open to avoid context issues */}
+      {isEditDialogOpen && selectedEmployee && (
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            if (!formOperationInProgress.current) {
+              setIsEditDialogOpen(open)
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[525px] flex flex-col">
+            <MobileDialogClose />
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>Edit Employee</DialogTitle>
+              <DialogDescription>Make changes to {selectedEmployee?.name}'s profile.</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  form.handleSubmit(handleEditEmployee)(e)
+                }}
+                className="flex flex-col flex-1 overflow-hidden"
+              >
+                <div className="flex-1 overflow-y-auto py-4">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="position"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Position</FormLabel>
+                            <FormControl>
+                              <Input {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="department"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Department</FormLabel>
+                            <FormControl>
+                              <Input {...field} maxLength={50} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input type="email" {...field} maxLength={100} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Phone</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="tel"
+                                placeholder="1234567890"
+                                {...field}
+                                maxLength={10}
+                                aria-describedby="phone-description"
+                              />
+                            </FormControl>
+                            <p id="phone-description" className="text-xs text-muted-foreground mt-1">
+                              10-digit number with no spaces or special characters
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="mentor"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mentor</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a mentor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {mentors.map((mentor) => (
+                                  <SelectItem key={mentor} value={mentor}>
+                                    {mentor}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormDatePicker
+                        control={form.control}
+                        name="startDate"
+                        label="Start Date"
+                        placeholder="Select start date"
+                        disablePastDates={false}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="progress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Progress ({field.value}%)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="range"
+                                min="0"
+                                max="100"
+                                onChange={(e) => field.onChange(Number.parseInt(e.target.value))}
+                                value={field.value}
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                                aria-valuenow={field.value}
+                                aria-valuetext={`${field.value} percent`}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="skills"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Skills</FormLabel>
+                          <div className="h-24 border rounded-md p-2 mb-2 overflow-auto">
+                            <div className="flex flex-wrap gap-2">
+                              {field.value.map((skill, index) => (
+                                <div
+                                  key={index}
+                                  className="bg-primary/10 px-2 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  {skill}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSkill(skill)}
+                                    className="text-muted-foreground hover:text-foreground ml-1"
+                                    aria-label={`Remove ${skill} skill`}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Add skill"
+                              value={newSkill}
+                              onChange={(e) => setNewSkill(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              maxLength={30}
+                              aria-label="Add a skill"
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={handleAddSkill}>
+                              Add
+                            </Button>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter className="flex-shrink-0 pt-4 border-t mt-auto form-buttons">
+                  <Button type="submit" className="w-full sm:w-auto" disabled={isEditingEmployee}>
+                    {isEditingEmployee ? (
+                      <span className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Saving...
+                      </span>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Employee Confirmation Dialog */}
     </div>
   )
 }

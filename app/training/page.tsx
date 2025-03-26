@@ -17,28 +17,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/safe-dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Calendar,
-  Clock,
-  Users,
-  CheckSquare,
-  BarChart3,
-  GraduationCap,
-  CheckCircle2,
-  Circle,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { Calendar, Clock, Users, CheckSquare, BarChart3, GraduationCap, CheckCircle2, Circle, Plus } from "lucide-react"
 import { trainingSchema, taskSchema } from "@/lib/validations"
 import { formatDate } from "@/lib/utils"
 import { EmptyState, TableContainer } from "@/components/ui-components"
 import { toast } from "sonner"
 import { DatePicker } from "@/components/ui/date-picker"
 import { format } from "date-fns"
+import { DeleteConfirmation } from "@/components/delete-confirmation"
 
 // Sample data
 const trainingSchedule = [
@@ -175,6 +164,13 @@ export default function TrainingPage() {
   const [registeredTrainings, setRegisteredTrainings] = useState([])
   const [registrationLoading, setRegistrationLoading] = useState(null)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Add state for delete confirmation
+  const [trainingToDelete, setTrainingToDelete] = useState(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState(null)
+  const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false)
 
   const trainingForm = useForm({
     resolver: zodResolver(trainingSchema),
@@ -228,28 +224,54 @@ export default function TrainingPage() {
   }
 
   const handleAddTraining = (data) => {
-    // Format the date from the DatePicker component
-    const formattedDate = selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""
+    setIsSubmitting(true)
 
-    const newTraining = {
-      ...data,
-      date: formattedDate,
-      id: trainings.length > 0 ? Math.max(...trainings.map((t) => t.id)) + 1 : 1,
-      attendees: 0,
-      status: "upcoming",
+    try {
+      // Format the date from the DatePicker component
+      const formattedDate = selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""
+
+      if (!formattedDate) {
+        toast.error("Date required", {
+          description: "Please select a date for the training.",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      const newTraining = {
+        ...data,
+        date: formattedDate,
+        id: trainings.length > 0 ? Math.max(...trainings.map((t) => t.id)) + 1 : 1,
+        attendees: 0,
+        status: "upcoming",
+      }
+
+      setTrainings([...trainings, newTraining])
+      setIsAddTrainingDialogOpen(false)
+      trainingForm.reset()
+      setSelectedDate(undefined)
+
+      toast.success("Training added", {
+        description: `${data.title} has been scheduled successfully.`,
+      })
+    } catch (error) {
+      console.error("Error adding training:", error)
+      toast.error("Failed to add training", {
+        description: "There was an error adding the training. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setTrainings([...trainings, newTraining])
-    setIsAddTrainingDialogOpen(false)
-    trainingForm.reset()
-    setSelectedDate(undefined)
-
-    toast.success("Training added", {
-      description: `${data.title} has been scheduled successfully.`,
-    })
   }
 
   const handleAddTask = (data) => {
+    if (!selectedChecklist) {
+      toast.error("No checklist selected", {
+        description: "Please select a checklist to add a task to.",
+      })
+      return
+    }
+
     const updatedChecklists = checklists.map((checklist) => {
       if (checklist.id === selectedChecklist.id) {
         const newTask = {
@@ -283,18 +305,84 @@ export default function TrainingPage() {
     })
   }
 
-  const handleDeleteTraining = (id) => {
-    const trainingToDelete = trainings.find((training) => training.id === id)
-    setTrainings(trainings.filter((training) => training.id !== id))
+  // Confirm delete training
+  const confirmDeleteTraining = (training) => {
+    setTrainingToDelete(training)
+    setIsDeleteDialogOpen(true)
+  }
+
+  // Handle delete training with undo functionality
+  const handleDeleteTraining = () => {
+    if (!trainingToDelete) return
+
+    const deletedTraining = trainingToDelete
+    setTrainings(trainings.filter((training) => training.id !== deletedTraining.id))
+    setIsDeleteDialogOpen(false)
+    setTrainingToDelete(null)
 
     toast("Training deleted", {
-      description: "The training session has been removed.",
+      description: `"${deletedTraining.title}" has been removed.`,
       action: {
         label: "Undo",
         onClick: () => {
-          setTrainings((prev) => [...prev, trainingToDelete])
+          setTrainings((prev) => [...prev, deletedTraining].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
-            description: "The training session has been restored.",
+            description: `"${deletedTraining.title}" has been restored.`,
+          })
+        },
+      },
+    })
+  }
+
+  // Confirm delete task
+  const confirmDeleteTask = (checklist, task) => {
+    setTaskToDelete({ checklist, task })
+    setIsDeleteTaskDialogOpen(true)
+  }
+
+  // Handle delete task with undo functionality
+  const handleDeleteTask = () => {
+    if (!taskToDelete) return
+
+    const { checklist, task } = taskToDelete
+    const originalChecklist = { ...checklist }
+
+    const updatedChecklists = checklists.map((c) => {
+      if (c.id === checklist.id) {
+        const updatedTasks = c.tasks.filter((t) => t.id !== task.id)
+
+        // Calculate new progress
+        const completedCount = updatedTasks.filter((t) => t.completed).length
+        const newProgress = updatedTasks.length > 0 ? Math.round((completedCount / updatedTasks.length) * 100) : 0
+
+        return {
+          ...c,
+          tasks: updatedTasks,
+          progress: newProgress,
+        }
+      }
+      return c
+    })
+
+    setChecklists(updatedChecklists)
+    if (selectedChecklist.id === checklist.id) {
+      setSelectedChecklist(updatedChecklists.find((c) => c.id === checklist.id))
+    }
+
+    setIsDeleteTaskDialogOpen(false)
+    setTaskToDelete(null)
+
+    toast("Task deleted", {
+      description: `"${task.description}" has been removed.`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setChecklists(checklists.map((c) => (c.id === checklist.id ? originalChecklist : c)))
+          if (selectedChecklist.id === checklist.id) {
+            setSelectedChecklist(originalChecklist)
+          }
+          toast.success("Action undone", {
+            description: `"${task.description}" has been restored.`,
           })
         },
       },
@@ -357,125 +445,10 @@ export default function TrainingPage() {
 
           <TabsContent value="schedule">
             <div className="flex justify-end mb-4">
-              <Dialog open={isAddTrainingDialogOpen} onOpenChange={setIsAddTrainingDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-1">
-                    <Plus className="h-4 w-4" />
-                    Add Training
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[95vw] sm:max-w-[525px]">
-                  <DialogHeader>
-                    <DialogTitle>Schedule New Training</DialogTitle>
-                    <DialogDescription>Fill in the details to schedule a new training session.</DialogDescription>
-                  </DialogHeader>
-                  <Form {...trainingForm}>
-                    <form onSubmit={trainingForm.handleSubmit(handleAddTraining)} className="space-y-4">
-                      <FormField
-                        control={trainingForm.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title</FormLabel>
-                            <FormControl>
-                              <Input {...field} maxLength={100} placeholder="e.g., Leadership Workshop" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={trainingForm.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Input {...field} maxLength={250} placeholder="Brief description of the training" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField
-                          control={trainingForm.control}
-                          name="date"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Date</FormLabel>
-                              <FormControl>
-                                <div>
-                                  <DatePicker
-                                    date={selectedDate}
-                                    setDate={(date) => {
-                                      setSelectedDate(date)
-                                      field.onChange(date ? format(date, "yyyy-MM-dd") : "")
-                                    }}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={trainingForm.control}
-                          name="time"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Time</FormLabel>
-                              <FormControl>
-                                <Input placeholder="e.g., 09:00 - 12:00" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField
-                          control={trainingForm.control}
-                          name="location"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Location</FormLabel>
-                              <FormControl>
-                                <Input {...field} maxLength={100} placeholder="e.g., Conference Room A" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={trainingForm.control}
-                          name="instructor"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Instructor</FormLabel>
-                              <FormControl>
-                                <Input {...field} maxLength={50} placeholder="e.g., John Smith" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                        <Button type="submit" className="w-full sm:w-auto">
-                          Schedule Training
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
+              <Button className="gap-1" onClick={() => setIsAddTrainingDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Training
+              </Button>
             </div>
 
             {trainings.length > 0 ? (
@@ -494,18 +467,17 @@ export default function TrainingPage() {
                               {training.status === "upcoming" ? "Upcoming" : "Completed"}
                             </Badge>
                             {training.status === "upcoming" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteTraining(training.id)
+                              <DeleteConfirmation
+                                itemName={training.title}
+                                itemType="Training"
+                                onDelete={() => {
+                                  const deletedTraining = { ...training }
+                                  setTrainings(trainings.filter((t) => t.id !== deletedTraining.id))
                                 }}
-                                aria-label={`Delete ${training.title}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                onUndo={() => {
+                                  setTrainings((prev) => [...prev, training].sort((a, b) => a.id - b.id))
+                                }}
+                              />
                             )}
                           </div>
                         </div>
@@ -650,64 +622,15 @@ export default function TrainingPage() {
                           aria-label={`Overall progress: ${selectedChecklist.progress}%`}
                         />
                       </div>
-                      <Dialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="gap-1">
-                            <Plus className="h-4 w-4" />
-                            Add Task
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-[95vw] sm:max-w-[525px]">
-                          <DialogHeader>
-                            <DialogTitle>Add New Task</DialogTitle>
-                            <DialogDescription>
-                              Add a new task to the "{selectedChecklist.title}" checklist.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <Form {...taskForm}>
-                            <form onSubmit={taskForm.handleSubmit(handleAddTask)} className="space-y-4">
-                              <FormField
-                                control={taskForm.control}
-                                name="description"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Task Description</FormLabel>
-                                    <FormControl>
-                                      <Input {...field} maxLength={100} placeholder="e.g., Complete training module" />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={taskForm.control}
-                                name="completed"
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                                    <FormControl>
-                                      <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                        id="task-completed"
-                                      />
-                                    </FormControl>
-                                    <div className="space-y-1 leading-none">
-                                      <FormLabel htmlFor="task-completed">Mark as completed</FormLabel>
-                                    </div>
-                                  </FormItem>
-                                )}
-                              />
-
-                              <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                                <Button type="submit" className="w-full sm:w-auto">
-                                  Add Task
-                                </Button>
-                              </DialogFooter>
-                            </form>
-                          </Form>
-                        </DialogContent>
-                      </Dialog>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        onClick={() => setIsAddTaskDialogOpen(true)}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Task
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -736,6 +659,38 @@ export default function TrainingPage() {
                               >
                                 {task.description}
                               </label>
+                            </div>
+                            <div className="flex items-center">
+                              <DeleteConfirmation
+                                itemName={task.description}
+                                itemType="Task"
+                                onDelete={() => {
+                                  const updatedTasks = selectedChecklist.tasks.filter((t) => t.id !== task.id)
+                                  const completedCount = updatedTasks.filter((t) => t.completed).length
+                                  const newProgress =
+                                    updatedTasks.length > 0
+                                      ? Math.round((completedCount / updatedTasks.length) * 100)
+                                      : 0
+
+                                  const updatedChecklist = {
+                                    ...selectedChecklist,
+                                    tasks: updatedTasks,
+                                    progress: newProgress,
+                                  }
+
+                                  setChecklists(
+                                    checklists.map((c) => (c.id === selectedChecklist.id ? updatedChecklist : c)),
+                                  )
+                                  setSelectedChecklist(updatedChecklist)
+                                }}
+                                onUndo={() => {
+                                  // Restore the original checklist
+                                  const originalChecklist = checklists.find((c) => c.id === selectedChecklist.id)
+                                  if (originalChecklist) {
+                                    setSelectedChecklist(originalChecklist)
+                                  }
+                                }}
+                              />
                             </div>
                           </div>
                         ))}
@@ -827,6 +782,162 @@ export default function TrainingPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Add Training Dialog */}
+        <Dialog open={isAddTrainingDialogOpen} onOpenChange={setIsAddTrainingDialogOpen}>
+          <DialogContent className="max-w-[95vw] sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle>Schedule New Training</DialogTitle>
+              <DialogDescription>Fill in the details to schedule a new training session.</DialogDescription>
+            </DialogHeader>
+            <Form {...trainingForm}>
+              <form onSubmit={trainingForm.handleSubmit(handleAddTraining)} className="space-y-4">
+                <FormField
+                  control={trainingForm.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input {...field} maxLength={100} placeholder="e.g., Leadership Workshop" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={trainingForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Input {...field} maxLength={250} placeholder="Brief description of the training" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium">Date</label>
+                    <DatePicker date={selectedDate} setDate={setSelectedDate} disablePastDates={true} />
+                    {!selectedDate && trainingForm.formState.isSubmitted && (
+                      <p className="text-sm font-medium text-destructive">Date is required</p>
+                    )}
+                  </div>
+
+                  <FormField
+                    control={trainingForm.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Time</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 09:00 - 12:00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={trainingForm.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <FormControl>
+                          <Input {...field} maxLength={100} placeholder="e.g., Conference Room A" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={trainingForm.control}
+                    name="instructor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Instructor</FormLabel>
+                        <FormControl>
+                          <Input {...field} maxLength={50} placeholder="e.g., John Smith" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                  <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <span className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Scheduling...
+                      </span>
+                    ) : (
+                      "Schedule Training"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Task Dialog */}
+        <Dialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen}>
+          <DialogContent className="max-w-[95vw] sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle>Add New Task</DialogTitle>
+              <DialogDescription>Add a new task to the "{selectedChecklist?.title}" checklist.</DialogDescription>
+            </DialogHeader>
+            <Form {...taskForm}>
+              <form onSubmit={taskForm.handleSubmit(handleAddTask)} className="space-y-4">
+                <FormField
+                  control={taskForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Task Description</FormLabel>
+                      <FormControl>
+                        <Input {...field} maxLength={100} placeholder="e.g., Complete training module" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={taskForm.control}
+                  name="completed"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} id="task-completed" />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel htmlFor="task-completed">Mark as completed</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                  <Button type="submit" className="w-full sm:w-auto">
+                    Add Task
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
         {/* Detailed Report Dialog */}
         <Dialog open={isDetailedReportOpen} onOpenChange={setIsDetailedReportOpen}>

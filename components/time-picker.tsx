@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Clock } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -32,12 +31,16 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
   // Update the date only when time inputs change manually
   useEffect(() => {
     if (timeChanged) {
-      const newDate = new Date(date || new Date())
-      newDate.setHours(isPM ? (hour === 12 ? 12 : hour + 12) : hour === 12 ? 0 : hour)
-      newDate.setMinutes(minute)
-      newDate.setSeconds(0)
-      setDate(newDate)
-      setTimeChanged(false)
+      try {
+        const newDate = new Date(date || new Date())
+        newDate.setHours(isPM ? (hour === 12 ? 12 : hour + 12) : hour === 12 ? 0 : hour)
+        newDate.setMinutes(minute)
+        newDate.setSeconds(0)
+        setDate(newDate)
+        setTimeChanged(false)
+      } catch (error) {
+        console.error("Error updating time:", error)
+      }
     }
   }, [timeChanged, hour, minute, isPM, setDate, date])
 

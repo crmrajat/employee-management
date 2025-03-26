@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Clock, CheckCircle2, Circle, FileText, Users, MessageSquare, BookOpen, Star } from "lucide-react"
+import { Clock, CheckCircle2, Circle, FileText, Users, MessageSquare, BookOpen, Star, Trash2 } from "lucide-react"
 import { feedbackSchema } from "@/lib/validations"
 import { formatDate } from "@/lib/utils"
 import {
@@ -23,9 +23,19 @@ import {
   MobileDialogClose,
 } from "@/components/safe-dialog"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Sample data
-const onboardingTimeline = [
+const initialOnboardingTimeline = [
   {
     id: 1,
     title: "Pre-Boarding",
@@ -104,11 +114,18 @@ const resources = [
 ]
 
 export default function OnboardingPage() {
+  const [onboardingTimeline, setOnboardingTimeline] = useState(initialOnboardingTimeline)
   const [activeTimeline, setActiveTimeline] = useState(onboardingTimeline[2]) // First Week is active
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isViewDocumentDialogOpen, setIsViewDocumentDialogOpen] = useState(false)
   const [selectedResource, setSelectedResource] = useState(null)
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined)
+
+  // Add state for task deletion confirmation
+  const [taskToDelete, setTaskToDelete] = useState(null)
+  const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false)
+  const [resourceToDelete, setResourceToDelete] = useState(null)
+  const [isDeleteResourceDialogOpen, setIsDeleteResourceDialogOpen] = useState(false)
 
   const form = useForm({
     resolver: zodResolver(feedbackSchema),
@@ -134,6 +151,102 @@ export default function OnboardingPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Add a function to handle task deletion with confirmation
+  const confirmDeleteTask = (phase, taskId) => {
+    const task = phase.steps.find((t) => t.id === taskId)
+    setTaskToDelete({ phase, task })
+    setIsDeleteTaskDialogOpen(true)
+  }
+
+  const handleDeleteTask = () => {
+    if (!taskToDelete) return
+
+    const { phase, task } = taskToDelete
+    const originalPhase = { ...phase }
+    const originalTimeline = [...onboardingTimeline]
+
+    // Create updated timeline with task removed
+    const updatedTimeline = onboardingTimeline.map((timeline) => {
+      if (timeline.id === phase.id) {
+        const updatedSteps = timeline.steps.filter((step) => step.id !== task.id)
+
+        // Calculate new progress
+        const completedCount = updatedSteps.filter((step) => step.completed).length
+        const newProgress = updatedSteps.length > 0 ? Math.round((completedCount / updatedSteps.length) * 100) : 0
+
+        return {
+          ...timeline,
+          steps: updatedSteps,
+          progress: newProgress,
+        }
+      }
+      return timeline
+    })
+
+    // Update state
+    setOnboardingTimeline(updatedTimeline)
+
+    // Update active timeline if it's the one being modified
+    if (activeTimeline.id === phase.id) {
+      setActiveTimeline(updatedTimeline.find((t) => t.id === phase.id))
+    }
+
+    setIsDeleteTaskDialogOpen(false)
+    setTaskToDelete(null)
+
+    toast("Task deleted", {
+      description: `"${task.title}" has been removed.`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setOnboardingTimeline(originalTimeline)
+          if (activeTimeline.id === phase.id) {
+            setActiveTimeline(originalPhase)
+          }
+          toast.success("Action undone", {
+            description: `"${task.title}" has been restored.`,
+          })
+        },
+      },
+    })
+  }
+
+  // Add a function to handle resource deletion with confirmation
+  const confirmDeleteResource = (resource) => {
+    setResourceToDelete(resource)
+    setIsDeleteResourceDialogOpen(true)
+  }
+
+  const handleDeleteResource = () => {
+    if (!resourceToDelete) return
+
+    const deletedResource = resourceToDelete
+    const originalResources = [...resources]
+
+    // Filter out the resource to delete
+    const updatedResources = resources.filter((r) => r.id !== deletedResource.id)
+
+    // Update resources state
+    // Note: In a real app, you would update this from a state variable
+    // For this demo, we'll just show the toast
+
+    setIsDeleteResourceDialogOpen(false)
+    setResourceToDelete(null)
+
+    toast("Resource deleted", {
+      description: `"${deletedResource.title}" has been removed.`,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          // In a real app, you would restore the resources here
+          toast.success("Action undone", {
+            description: `"${deletedResource.title}" has been restored.`,
+          })
+        },
+      },
+    })
   }
 
   return (
@@ -201,17 +314,31 @@ export default function OnboardingPage() {
                             </div>
                           </div>
                           <div className="flex flex-col space-y-1.5 pl-4 sm:pl-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-medium">{step.title}</h3>
-                              {step.completed ? (
-                                <Badge variant="outline" className="text-xs">
-                                  Completed
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">
-                                  Pending
-                                </Badge>
-                              )}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-medium">{step.title}</h3>
+                                {step.completed ? (
+                                  <Badge variant="outline" className="text-xs">
+                                    Completed
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">
+                                    Pending
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  confirmDeleteTask(activeTimeline, step.id)
+                                }}
+                                aria-label={`Delete task: ${step.title}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="mr-1 h-3 w-3 flex-shrink-0" />
@@ -294,7 +421,14 @@ export default function OnboardingPage() {
 
                     <div className="flex justify-end">
                       <Button type="submit" disabled={form.getValues().rating === 0 || isSubmitting}>
-                        {isSubmitting ? "Submitting..." : "Submit Feedback"}
+                        {isSubmitting ? (
+                          <span className="flex items-center gap-2">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            Submitting...
+                          </span>
+                        ) : (
+                          "Submit Feedback"
+                        )}
                       </Button>
                     </div>
                   </form>
@@ -308,12 +442,26 @@ export default function OnboardingPage() {
               {resources.map((resource) => (
                 <Card key={resource.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
-                    <div className="flex items-start gap-4">
-                      <div className="bg-primary/10 p-3 rounded-lg">{resource.icon}</div>
-                      <div>
-                        <CardTitle>{resource.title}</CardTitle>
-                        <CardDescription>{resource.description}</CardDescription>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="bg-primary/10 p-3 rounded-lg">{resource.icon}</div>
+                        <div>
+                          <CardTitle>{resource.title}</CardTitle>
+                          <CardDescription>{resource.description}</CardDescription>
+                        </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          confirmDeleteResource(resource)
+                        }}
+                        aria-label={`Delete resource: ${resource.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardHeader>
                   <CardFooter>
@@ -386,6 +534,39 @@ export default function OnboardingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={isDeleteTaskDialogOpen} onOpenChange={setIsDeleteTaskDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the task "{taskToDelete?.task?.title}"? You can undo this action if
+              needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTaskToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isDeleteResourceDialogOpen} onOpenChange={setIsDeleteResourceDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Resource</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{resourceToDelete?.title}"? You can undo this action if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setResourceToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteResource} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
