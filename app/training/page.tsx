@@ -220,6 +220,7 @@ export default function TrainingPage() {
 
     toast.success("Task updated", {
       description: "Your progress has been saved.",
+      className: "toast-success",
     })
   }
 
@@ -233,6 +234,7 @@ export default function TrainingPage() {
       if (!formattedDate) {
         toast.error("Date required", {
           description: "Please select a date for the training.",
+          className: "toast-error",
         })
         setIsSubmitting(false)
         return
@@ -253,11 +255,13 @@ export default function TrainingPage() {
 
       toast.success("Training added", {
         description: `${data.title} has been scheduled successfully.`,
+        className: "toast-success",
       })
     } catch (error) {
       console.error("Error adding training:", error)
       toast.error("Failed to add training", {
         description: "There was an error adding the training. Please try again.",
+        className: "toast-error",
       })
     } finally {
       setIsSubmitting(false)
@@ -268,6 +272,7 @@ export default function TrainingPage() {
     if (!selectedChecklist) {
       toast.error("No checklist selected", {
         description: "Please select a checklist to add a task to.",
+        className: "toast-error",
       })
       return
     }
@@ -302,6 +307,7 @@ export default function TrainingPage() {
 
     toast.success("Task added", {
       description: "New task has been added to the checklist.",
+      className: "toast-success",
     })
   }
 
@@ -328,9 +334,11 @@ export default function TrainingPage() {
           setTrainings((prev) => [...prev, deletedTraining].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
             description: `"${deletedTraining.title}" has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-error",
     })
   }
 
@@ -383,9 +391,11 @@ export default function TrainingPage() {
           }
           toast.success("Action undone", {
             description: `"${task.description}" has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-error",
     })
   }
 
@@ -401,10 +411,12 @@ export default function TrainingPage() {
       // Show success toast
       toast.success("Registration successful", {
         description: "You have been registered for this training session.",
+        className: "toast-success",
       })
     } catch (error) {
       toast.error("Registration failed", {
         description: "There was an error registering for this training. Please try again.",
+        className: "toast-error",
       })
     } finally {
       setRegistrationLoading(null)
@@ -415,6 +427,7 @@ export default function TrainingPage() {
     // In a real app, this would show detailed information about the training
     toast.success("Training details", {
       description: "Viewing detailed information about this training session.",
+      className: "toast-success",
     })
   }
 

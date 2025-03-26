@@ -245,6 +245,7 @@ export default function DocumentsPage() {
         if (!uploadDate) {
           toast.error("Date required", {
             description: "Please select an upload date.",
+            className: "toast-error",
           })
           setIsUploading(false)
           return
@@ -258,6 +259,7 @@ export default function DocumentsPage() {
         if (uploadDateObj > today) {
           toast.error("Invalid date", {
             description: "Upload date cannot be in the future.",
+            className: "toast-error",
           })
           setIsUploading(false)
           return
@@ -280,10 +282,12 @@ export default function DocumentsPage() {
 
         toast.success("Document uploaded", {
           description: `${newDocument.name} has been uploaded successfully.`,
+          className: "toast-success",
         })
       } catch (error) {
         toast.error("Upload failed", {
           description: "There was an error uploading your document. Please try again.",
+          className: "toast-error",
         })
       } finally {
         setIsUploading(false)
@@ -305,6 +309,7 @@ export default function DocumentsPage() {
 
     toast.success("Library created", {
       description: `${data.name} library has been created successfully.`,
+      className: "toast-success",
     })
   }
 
@@ -333,9 +338,11 @@ export default function DocumentsPage() {
           setDocuments((prev) => [...prev, doc].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
             description: `"${doc.name}" has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-default",
     })
   }
 
@@ -361,9 +368,11 @@ export default function DocumentsPage() {
           setLibraries((prev) => [...prev, library].sort((a, b) => a.id - b.id))
           toast.success("Action undone", {
             description: `"${library.name}" library has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-default",
     })
   }
 
@@ -382,6 +391,7 @@ export default function DocumentsPage() {
 
     toast.success("Document downloaded", {
       description: `${doc.name} has been downloaded.`,
+      className: "toast-success",
     })
   }
 

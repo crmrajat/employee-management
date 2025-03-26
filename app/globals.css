@@ -32,6 +32,16 @@
     --sidebar-accent-foreground: 0 0% 9%;
     --sidebar-border: 0 0% 89.8%;
     --sidebar-ring: 0 0% 3.9%;
+
+    /* Add RGB variables for toast styling */
+    --background-rgb: 255, 255, 255;
+    --destructive-rgb: 239, 68, 68;
+    --success-rgb: 34, 197, 94;
+    --muted-rgb: 245, 245, 245;
+
+    /* Add success color variables */
+    --success: 142 76% 45%;
+    --success-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -62,6 +72,16 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 14.9%;
     --sidebar-ring: 0 0% 83.1%;
+
+    /* Add RGB variables for toast styling in dark mode */
+    --background-rgb: 10, 10, 10;
+    --destructive-rgb: 220, 38, 38;
+    --success-rgb: 22, 163, 74;
+    --muted-rgb: 38, 38, 38;
+
+    /* Add success color variables for dark mode */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
   }
 }
 

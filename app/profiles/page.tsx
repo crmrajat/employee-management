@@ -180,10 +180,12 @@ export default function ProfilesPage() {
 
         toast.success("Employee added", {
           description: `${data.name} has been added successfully.`,
+          className: "toast-success",
         })
       } catch (error) {
         toast.error("Failed to add employee", {
           description: "There was an error adding the employee. Please try again.",
+          className: "toast-error",
         })
       } finally {
         setIsAddingEmployee(false)
@@ -215,10 +217,12 @@ export default function ProfilesPage() {
 
         toast.success("Employee updated", {
           description: `${data.name}'s profile has been updated successfully.`,
+          className: "toast-success",
         })
       } catch (error) {
         toast.error("Failed to update employee", {
           description: "There was an error updating the employee. Please try again.",
+          className: "toast-error",
         })
       } finally {
         setIsEditingEmployee(false)
@@ -257,9 +261,11 @@ export default function ProfilesPage() {
           }
           toast.success("Action undone", {
             description: `${deletedEmployee.name} has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-default",
     })
   }, [employeeToDelete, selectedEmployee])
 
@@ -287,9 +293,11 @@ export default function ProfilesPage() {
             form.setValue("skills", [...form.getValues().skills, skillToRemove])
             toast.success("Action undone", {
               description: `"${skillToRemove}" has been restored to skills.`,
+              className: "toast-success",
             })
           },
         },
+        className: "toast-default",
       })
     },
     [form],

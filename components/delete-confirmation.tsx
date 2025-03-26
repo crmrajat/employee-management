@@ -52,12 +52,14 @@ export function DeleteConfirmation({
             onUndo()
             toast.success("Action undone", {
               description: `"${itemName}" has been restored.`,
+              className: "toast-success",
             })
           },
         },
+        className: "toast-error",
       })
     } else {
-      toast.success(`${itemType} deleted`, {
+      toast.error(`${itemType} deleted`, {
         description: `"${itemName}" has been removed.`,
       })
     }

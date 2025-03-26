@@ -142,11 +142,13 @@ export default function OnboardingPage() {
       await new Promise((resolve) => setTimeout(resolve, 500))
       toast.success("Feedback submitted", {
         description: `Thank you for your feedback! You rated your experience ${data.rating}/5.`,
+        className: "toast-success",
       })
       form.reset()
     } catch (error) {
       toast.error("Failed to submit feedback", {
         description: "Please try again later.",
+        className: "toast-error",
       })
     } finally {
       setIsSubmitting(false)
@@ -207,9 +209,11 @@ export default function OnboardingPage() {
           }
           toast.success("Action undone", {
             description: `"${task.title}" has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-default",
     })
   }
 
@@ -243,9 +247,11 @@ export default function OnboardingPage() {
           // In a real app, you would restore the resources here
           toast.success("Action undone", {
             description: `"${deletedResource.title}" has been restored.`,
+            className: "toast-success",
           })
         },
       },
+      className: "toast-default",
     })
   }
 

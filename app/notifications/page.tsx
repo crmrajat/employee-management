@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 import { Bell, Info, AlertCircle, Calendar, CheckCircle2, X } from "lucide-react"
 import { formatDateTime } from "@/lib/utils"
 import { EmptyState, ScrollableContent, TableContainer } from "@/components/ui-components"
@@ -21,6 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+
+// Add this import
+import { toast } from "sonner"
 
 // Sample data
 const initialNotifications = [
@@ -106,7 +108,6 @@ const notificationSettings = [
 ]
 
 export default function NotificationsPage() {
-  const { toast } = useToast()
   const [notifications, setNotifications] = useState(initialNotifications)
   const [settings, setSettings] = useState(notificationSettings)
 
@@ -117,18 +118,18 @@ export default function NotificationsPage() {
       notifications.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
     )
 
-    toast({
-      title: "Notification marked as read",
+    toast.success("Notification marked as read", {
       description: "The notification has been marked as read.",
+      className: "toast-success",
     })
   }
 
   const markAllAsRead = () => {
     setNotifications(notifications.map((notification) => ({ ...notification, read: true })))
 
-    toast({
-      title: "All notifications marked as read",
+    toast.success("All notifications marked as read", {
       description: "All notifications have been marked as read.",
+      className: "toast-success",
     })
   }
 
@@ -136,26 +137,19 @@ export default function NotificationsPage() {
     const notificationToDelete = notifications.find((n) => n.id === id)
     setNotifications(notifications.filter((notification) => notification.id !== id))
 
-    const { dismiss } = toast({
-      title: "Notification deleted",
+    toast("Notification deleted", {
       description: "The notification has been removed.",
-      action: (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 sm:mt-0"
-          onClick={() => {
-            setNotifications((prev) => [...prev, notificationToDelete].sort((a, b) => a.id - b.id))
-            dismiss()
-            toast({
-              title: "Action undone",
-              description: "The notification has been restored.",
-            })
-          }}
-        >
-          Undo
-        </Button>
-      ),
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setNotifications((prev) => [...prev, notificationToDelete].sort((a, b) => a.id - b.id))
+          toast.success("Action undone", {
+            description: "The notification has been restored.",
+            className: "toast-success",
+          })
+        },
+      },
+      className: "toast-default",
     })
   }
 
@@ -181,9 +175,9 @@ export default function NotificationsPage() {
     const category = updatedSettings.find((c) => c.id === categoryId)
     const setting = category.settings.find((s) => s.id === settingId)
 
-    toast({
-      title: `${setting.enabled ? "Enabled" : "Disabled"} ${setting.name}`,
+    toast.success(`${setting.enabled ? "Enabled" : "Disabled"} ${setting.name}`, {
       description: `You will ${setting.enabled ? "now" : "no longer"} receive notifications for ${setting.name.toLowerCase()}.`,
+      className: "toast-success",
     })
   }
 

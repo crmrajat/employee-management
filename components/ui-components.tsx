@@ -41,6 +41,7 @@ export function ScrollableContent({ children, maxHeight }: ScrollableContentProp
   )
 }
 
+// Replace the ToastProvider component with the Sonner Toaster
 export function ToastProvider() {
   return (
     <div suppressHydrationWarning>
@@ -81,6 +82,38 @@ export function ToastProvider() {
           width: 100%;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
+        }
+
+        /* Custom toast styling */
+        
+        /* Default Sonner toast - green */
+        [data-sonner-toast] {
+          background-color: #22c55e !important; /* Green */
+          color: white !important;
+          border: 1px solid #22c55e !important;
+        }
+        
+        /* Error/destructive toast - red */
+        [data-sonner-toast][data-type="error"],
+        .toast-error,
+        .toast-destructive {
+          background-color: #ef4444 !important; /* Red */
+          color: white !important;
+          border: 1px solid #ef4444 !important;
+        }
+        
+        /* Make delete/remove toasts red */
+        [data-sonner-toast].toast-default {
+          background-color: #ef4444 !important; /* Red */
+          color: white !important;
+          border: 1px solid #ef4444 !important;
+        }
+        
+        /* Toast with action buttons - white background for better visibility */
+        [data-sonner-toast][data-type="action"] {
+          background-color: white !important;
+          color: black !important;
+          border: 1px solid hsl(var(--border)) !important;
         }
       `}</style>
       <Toaster position="bottom-right" />
